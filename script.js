@@ -6,9 +6,76 @@ if (/Edge/.test(navigator.userAgent)) {
 */
 $(document).on('ready', function () {
     'use strict';
+    // Preload vài ảnh đầu của album để khi mở "Album Hình Cưới" không bị đợi load.
+    // Lý do: phần album đang bị ẩn bằng `.display_none` + `loading="lazy"` nên browser sẽ không tải cho tới khi hiển thị.
+    (function preloadAlbumImages() {
+        function run() {
+            try {
+                var $imgs = $('.pt-page-6 img.img-responsive[src]').slice(0, 8);
+                if (!$imgs.length) return;
+
+                $imgs.each(function (idx, el) {
+                    var src = el.getAttribute('src');
+                    if (!src) return;
+
+                    // Ưu tiên 2 ảnh đầu: eager để render nhanh hơn khi đã vào album
+                    if (idx < 2) {
+                        el.setAttribute('loading', 'eager');
+                        el.setAttribute('fetchpriority', 'high');
+                    }
+                    el.setAttribute('decoding', 'async');
+
+                    var img = new Image();
+                    img.decoding = 'async';
+                    img.src = src;
+                });
+            } catch (e) {
+                // no-op
+            }
+        }
+
+        // Đợi UI ổn định rồi preload (tránh cạnh tranh tài nguyên lúc mới vào trang)
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(run, { timeout: 2000 });
+        } else {
+            setTimeout(run, 1200);
+        }
+    })();
+
     //Vertical icon-menu active script
     $('.horizontal_iconmenu li').on('click', function () {
         $('.page-top').removeClass('display_none');
+
+        // Khi vào Album (data-animation="6"), ép preload/layout sớm để tránh cảm giác "đợi 1 lúc mới ra".
+        var animationId = String($(this).attr('data-animation') || '');
+        if (animationId === '6') {
+            (function warmupAlbum() {
+                try {
+                    var $albumImgs = $('.pt-page-6 img.img-responsive[src]').slice(0, 12);
+                    $albumImgs.each(function (idx, el) {
+                        if (idx < 4) {
+                            el.setAttribute('loading', 'eager');
+                            el.setAttribute('fetchpriority', 'high');
+                        }
+                        el.setAttribute('decoding', 'async');
+                    });
+
+                    // Trigger layout lại (Isotope) sau khi album được hiển thị
+                    setTimeout(function () {
+                        try {
+                            if ($.fn && $.fn.isotope && $('.gridlayout').length) {
+                                $('.gridlayout').isotope('layout');
+                            }
+                        } catch (e) {
+                            // no-op
+                        }
+                    }, 50);
+                } catch (e) {
+                    // no-op
+                }
+            })();
+        }
+
         $('.wow').attr('style', 'visibility: hidden; animation-name: none; -webkit-transform:translateY(20px); -moz-transform:translateY(20px); -ms-transform:translateY(20px); -o-transform:translateY(20px); transform:translateY(20px); -webkit-animation-duration: 2s; -moz-animation-duration: 2s; -ms-animation-duration: 2s; -o-animation-duration: 2s; animation-duration: 2s;');
 
         $('.horizontal_iconmenu li').removeClass('hover_active');
